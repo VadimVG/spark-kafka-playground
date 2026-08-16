@@ -1,7 +1,14 @@
 # SPARK-KAFKA-PLAYGROUND
 
 ## Description
+End-to-end data pipeline that simulates an e-commerce event stream, processes it in near real-time with Spark, and orchestrates everything with Airflow.
 
+The project mimics a production setup:
+- **event-simulator** generates fake but realistic events (sales, orders, logs) and sends them to Kafka.
+- **Kafka** is a message broker. It receives events from producers and stores them until consumers are ready to read. If a consumer is down or slow, messages just wait in Kafka; nothing is lost.
+- **Spark** consumes streams from Kafka, processes them, and writes results to PostgreSQL.
+- **Airflow** orchestrates Spark jobs — schedules and monitors their execution.
+- **PostgreSQL** stores processed data for analytics (external service).
 
 ## Quick Start
 
@@ -69,5 +76,40 @@ Open http://localhost:8080, login with username admin and the password from the 
 
 #### DAGs
 Place DAG files in app/airflow/dags/. They are mounted into the container and picked up automatically.
+
+#### Useful commands
+```bash
+# Show all airflow providers
+docker compose exec airflow airflow providers list
+
+# Spark submit version
+docker compose exec airflow spark-submit --version
+```
+
+
+### 5. Spark
+Distributed data processing engine. Handles streaming from Kafka and batch transformations.
+
+- **Image:** `apache/spark:4.0.1-scala2.13-java17-python3-ubuntu`
+- **Master UI:** `http://localhost:8081`
+- **Worker UI:** `http://localhost:8082`
+- **Master port:** `7077` (for job submission)
+
+#### Job Structure
+
+Spark jobs are mounted from `app/spark/jobs/` into both master and worker containers at `/opt/spark/jobs/`.
+
+#### Useful Commands
+
+```bash
+# Test Spark with a sample job
+docker compose exec spark-master \
+  /opt/spark/bin/spark-submit \
+  --master spark://spark-master:7077 \
+  /opt/spark/jobs/test_job.py
+
+# Open Spark shell (interactive PySpark)
+docker compose exec -it spark-master /opt/spark/bin/pyspark
+```
 
 

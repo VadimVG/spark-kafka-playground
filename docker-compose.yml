@@ -9,8 +9,6 @@ services:
 
   kafka:
     image: confluentinc/cp-kafka:7.8.0
-    depends_on:
-      - zookeeper
     ports:
       - "9092:9092"
     environment:
@@ -20,33 +18,66 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
       KAFKA_LOG_RETENTION_HOURS: 120
+    depends_on:
+      - zookeeper
 
   event-simulator:
     build:
       context: .
       dockerfile: event-simulator/Dockerfile
-    depends_on:
-      - kafka
-    volumes:
-      - ./event-simulator:/event-simulator
     environment:
       - LOAD_LEVEL=low
-
+    volumes:
+      - ./event-simulator:/event-simulator
+    depends_on:
+      - kafka
 
   airflow:
-      image: apache/airflow:3.0.0
-      ports:
-        - "8080:8080"
-      environment:
-        AIRFLOW__CORE__LOAD_EXAMPLES: "false"
-        AIRFLOW__CORE__EXECUTOR: LocalExecutor
-      volumes:
-        - ./app/airflow/dags:/opt/airflow/dags
-      command: >
-          bash -c "airflow db migrate &&
-                  airflow standalone"
-      depends_on:
-        - kafka
+    build:
+      context: .
+      dockerfile: app/airflow/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW_CONN_SPARK_DEFAULT: 'spark://spark-master:7077'
+    command: >
+        bash -c "airflow db migrate &&
+                airflow standalone"
+    volumes:
+      - ./app/airflow/dags:/opt/airflow/dags
+      - ./app/spark/jobs:/opt/spark/jobs
+    depends_on:
+      - kafka
+      - spark-master
+
+  spark-master:
+    image: apache/spark:4.0.1-scala2.13-java17-python3-ubuntu
+    container_name: spark-master
+    ports:
+      - "7077:7077"
+      - "8081:8080"
+    command: >
+      /opt/spark/bin/spark-class
+      org.apache.spark.deploy.master.Master
+      --host spark-master
+    volumes:
+      - ./app/spark/jobs:/opt/spark/jobs
+
+  spark-worker:
+    image: apache/spark:4.0.1-scala2.13-java17-python3-ubuntu
+    container_name: spark-worker
+    ports:
+      - "8082:8081"
+    command: >
+      /opt/spark/bin/spark-class
+      org.apache.spark.deploy.worker.Worker
+      spark://spark-master:7077
+    volumes:
+      - ./app/spark/jobs:/opt/spark/jobs
+    depends_on:
+      - spark-master
 
 
 networks:
