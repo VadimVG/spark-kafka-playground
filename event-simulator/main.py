@@ -11,7 +11,7 @@ from events import EventGenerator
 from config import RATES
 
 
-def wait_for_kafka(bootstrap_servers: str, max_retries: int = 30, delay: int = 2) -> KafkaProducer:
+def wait_for_kafka(bootstrap_servers: str, max_retries: int = 30, delay: int = 5) -> KafkaProducer:
     """Wait until Kafka is ready, then return a producer."""
     for attempt in range(1, max_retries + 1):
         try:

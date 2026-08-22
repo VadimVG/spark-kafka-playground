@@ -18,6 +18,11 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
       KAFKA_LOG_RETENTION_HOURS: 120
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
     depends_on:
       - zookeeper
 
@@ -30,7 +35,8 @@ services:
     volumes:
       - ./event-simulator:/event-simulator
     depends_on:
-      - kafka
+      kafka:
+        condition: service_healthy
 
   airflow:
     build:
@@ -42,6 +48,8 @@ services:
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW_CONN_SPARK_DEFAULT: 'spark://spark-master:7077'
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     command: >
         bash -c "airflow db migrate &&
                 airflow standalone"
@@ -53,11 +61,15 @@ services:
       - spark-master
 
   spark-master:
-    image: apache/spark:4.0.1-scala2.13-java17-python3-ubuntu
-    container_name: spark-master
+    build:
+      context: .
+      dockerfile: app/spark/Dockerfile
     ports:
       - "7077:7077"
       - "8081:8080"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     command: >
       /opt/spark/bin/spark-class
       org.apache.spark.deploy.master.Master
@@ -66,8 +78,9 @@ services:
       - ./app/spark/jobs:/opt/spark/jobs
 
   spark-worker:
-    image: apache/spark:4.0.1-scala2.13-java17-python3-ubuntu
-    container_name: spark-worker
+    build:
+      context: .
+      dockerfile: app/spark/Dockerfile
     ports:
       - "8082:8081"
     command: >

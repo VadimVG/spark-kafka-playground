@@ -7,4 +7,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY event-simulator/ .
 
-CMD ["python", "main.py"]
+CMD ["python", "-u", "main.py"]
