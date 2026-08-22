@@ -13,11 +13,11 @@ The project mimics a production setup:
 ## Quick Start
 
 ```bash
-# Build and start all services
-docker compose up --build -d
-
 # Create new network for external services
 docker network create data-platform-net
+
+# Build and start all services
+docker compose up --build -d
 ```
 
 ## Services
