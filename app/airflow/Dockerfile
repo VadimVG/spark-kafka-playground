@@ -2,7 +2,7 @@
 FROM apache/spark:4.0.1-scala2.13-java17-python3-ubuntu AS spark-base
 
 # Stage 2: final Airflow image
-FROM apache/airflow:3.0.0
+FROM apache/airflow:3.0.0-python3.10
 
 # Switch to root to copy system files
 USER root
@@ -40,6 +40,8 @@ RUN mkdir -p /opt/spark/checkpoints && \
 
 # Switch back to Airflow user (required for pip install)
 USER airflow
+
+RUN pip install --no-cache-dir psycopg2-binary==2.9.11
 
 # Install Airflow providers
 # common-compat: compatibility layer for older provider APIs

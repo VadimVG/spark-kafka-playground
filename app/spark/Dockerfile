@@ -16,6 +16,8 @@ RUN wget -P /opt/spark/jars \
         https://repo1.maven.org/maven2/org/postgresql/postgresql/42.7.4/postgresql-42.7.4.jar && \
     chmod 644 /opt/spark/jars/*.jar
 
+RUN pip install --no-cache-dir psycopg2-binary==2.9.11
+
 # Create checkpoints directory with write permissions for airflow user
 RUN mkdir -p /opt/spark/checkpoints && \
     chown -R spark:spark /opt/spark/checkpoints && \

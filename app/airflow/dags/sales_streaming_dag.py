@@ -10,7 +10,7 @@ from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOpe
     schedule=None,
     catchup=False,
     tags=["streaming", "spark", "kafka"],
-    description="Streaming job: Kafka sales topic → Spark → PostgreSQL",
+    description="Streaming job: Kafka sales topic -> Spark -> PostgreSQL",
 )
 def sales_streaming():
 

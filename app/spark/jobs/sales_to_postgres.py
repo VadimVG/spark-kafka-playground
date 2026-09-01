@@ -73,7 +73,7 @@ def write_to_postgres(batch_df: DataFrame, batch_id: int):
     # batch_df - DataFrame with data accumulated during trigger interval
     # batch_id - sequential number of the micro-batch
 
-    db_url = "jdbc:postgresql://postgres:5432/analytics"
+    db_url = os.getenv("POSTGRES_URL")
     db_table = "sales"
     db_user = os.getenv("POSTGRES_USER")
     db_password = os.getenv("POSTGRES_PASSWORD")
