@@ -4,7 +4,23 @@ from pyspark.sql.types import (
     StructType, StructField, StringType, IntegerType, TimestampType
 )
 
-import os
+from app.spark.utils.partition_upserter import make_partition_upserter
+
+
+LOGS_METRICS_UPSERT_SQL = """
+    INSERT INTO logs_metrics (
+        window_start, window_end, action, page, count
+    ) VALUES (%s, %s, %s, %s, %s)
+    ON CONFLICT (window_start, window_end, action, page)
+    DO UPDATE SET count = EXCLUDED.count
+"""
+
+# names of Row fields, in the same order as %s placeholders above.
+# "cnt" is used instead of "count" because Row.count is a built-in method,
+# so a column named "count" gets renamed to "cnt" earlier in the pipeline
+LOGS_METRICS_ROW_FIELDS = ["window_start", "window_end", "action", "page", "cnt"]
+
+upsert_partition = make_partition_upserter(LOGS_METRICS_UPSERT_SQL, LOGS_METRICS_ROW_FIELDS)
 
 
 def main():
@@ -94,45 +110,6 @@ def write_to_postgres(batch_df: DataFrame, batch_id: int) -> None:
     flattened.foreachPartition(upsert_partition)
 
     print(f"Batch {batch_id}: metrics upserted")
-
-
-def upsert_partition(iterator):
-    """Upsert metric rows from a single partition."""
-    import psycopg2
-
-    db_host = os.getenv("POSTGRES_HOST")
-    db_name = os.getenv("POSTGRES_DB")
-    db_user = os.getenv("POSTGRES_USER")
-    db_password = os.getenv("POSTGRES_PASSWORD")
-
-    conn = psycopg2.connect(
-        host=db_host,
-        database=db_name,
-        user=db_user,
-        password=db_password
-    )
-    cursor = conn.cursor()
-
-    try:
-        for row in iterator:
-            cursor.execute("""
-                INSERT INTO logs_metrics (
-                    window_start, window_end, action, page, count
-                ) VALUES (%s, %s, %s, %s, %s)
-                ON CONFLICT (window_start, window_end, action, page) 
-                DO UPDATE SET count = EXCLUDED.count
-            """, (
-                row.window_start, row.window_end, row.action, row.page, row.cnt
-            ))
-
-        conn.commit()
-    except Exception as e:
-        conn.rollback()
-        print(f"Upsert partition failed: {e}")
-        raise
-    finally:
-        cursor.close()
-        conn.close()
 
 
 if __name__ == "__main__":

@@ -6,7 +6,31 @@ from pyspark.sql.types import (
     DecimalType, TimestampType
 )
 
-import os
+from app.spark.utils.partition_upserter import make_partition_upserter
+
+
+ORDERS_UPSERT_SQL = """
+    INSERT INTO orders (
+        order_id, order_number, user_id, product_id, quantity,
+        price, status, total, timestamp,
+        kafka_offset, kafka_partition, kafka_topic
+    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    ON CONFLICT (order_id)
+    DO UPDATE SET
+        status = EXCLUDED.status,
+        timestamp = EXCLUDED.timestamp,
+        kafka_offset = EXCLUDED.kafka_offset,
+        kafka_partition = EXCLUDED.kafka_partition,
+        kafka_topic = EXCLUDED.kafka_topic
+"""
+
+ORDERS_COLUMNS = [
+    "order_id", "order_number", "user_id", "product_id", "quantity",
+    "price", "status", "total", "timestamp",
+    "kafka_offset", "kafka_partition", "kafka_topic",
+]
+
+upsert_partition = make_partition_upserter(ORDERS_UPSERT_SQL, ORDERS_COLUMNS)
 
 
 def main():
@@ -80,53 +104,6 @@ def write_to_postgres(batch_df: DataFrame, batch_id: int):
     deduplicated.foreachPartition(upsert_partition)
 
     print(f"Batch {batch_id}: upsert completed")
-
-
-def upsert_partition(iterator):
-    """Upsert rows from a single partition to PostgreSQL."""
-    import psycopg2
-
-    db_host = os.getenv("POSTGRES_HOST")
-    db_name = os.getenv("POSTGRES_DB")
-    db_user = os.getenv("POSTGRES_USER")
-    db_password = os.getenv("POSTGRES_PASSWORD")
-
-    conn = psycopg2.connect(
-        host=db_host,
-        database=db_name,
-        user=db_user,
-        password=db_password
-    )
-    cursor = conn.cursor()
-
-    try:
-        for row in iterator:
-            cursor.execute("""
-                INSERT INTO orders (
-                    order_id, order_number, user_id, product_id, quantity,
-                    price, status, total, timestamp,
-                    kafka_offset, kafka_partition, kafka_topic
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (order_id) 
-                DO UPDATE SET
-                    status = EXCLUDED.status,
-                    timestamp = EXCLUDED.timestamp,
-                    kafka_offset = EXCLUDED.kafka_offset,
-                    kafka_partition = EXCLUDED.kafka_partition,
-                    kafka_topic = EXCLUDED.kafka_topic
-            """, (
-                row.order_id, row.order_number, row.user_id, row.product_id,
-                row.quantity, row.price, row.status, row.total, row.timestamp,
-                row.kafka_offset, row.kafka_partition, row.kafka_topic
-            ))
-        conn.commit()
-    except Exception as e:
-        conn.rollback()
-        print(f"Upsert partition failed: {e}")
-        raise
-    finally:
-        cursor.close()
-        conn.close()
 
 
 if __name__ == "__main__":

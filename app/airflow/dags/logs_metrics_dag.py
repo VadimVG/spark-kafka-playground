@@ -16,7 +16,7 @@ def logs_metrics_streaming():
 
     submit_logs_metrics = SparkSubmitOperator(
         task_id="submit_logs_metrics",
-        application="/opt/spark/jobs/logs_metrics_to_postgres.py",
+        application="/opt/app/spark/jobs/logs_metrics_to_postgres.py",
         conn_id="spark_default",
         name="logs-metrics-to-postgres",
         verbose=True,

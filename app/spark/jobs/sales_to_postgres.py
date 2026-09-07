@@ -2,9 +2,8 @@ from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql.functions import from_json, col
 from pyspark.sql.types import StructType, StructField, StringType, IntegerType, DecimalType, TimestampType
 
-import os
-
 from app.common_utils.connections.config import pg_config
+
 
 def main():
     # Create SparkSession - the entry point to Spark cluster

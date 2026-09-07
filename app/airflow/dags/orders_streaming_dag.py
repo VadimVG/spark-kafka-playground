@@ -15,7 +15,7 @@ from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOpe
 def orders_streaming():
     submit_orders_stream = SparkSubmitOperator(
         task_id="submit_orders_stream",
-        application="/opt/spark/jobs/orders_to_postgres.py",
+        application="/opt/app/spark/jobs/orders_to_postgres.py",
         conn_id="spark_default",
         name="orders-to-postgres",
         verbose=True,

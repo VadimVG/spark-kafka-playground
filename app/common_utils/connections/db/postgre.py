@@ -2,7 +2,7 @@ import psycopg2
 from psycopg2.extensions import connection, cursor
 
 from typing import Optional
-from config import DBConfig, pg_config
+from app.common_utils.connections.config import DBConfig, pg_config
 
 
 class PostgresConnection:
@@ -23,13 +23,21 @@ class PostgresConnection:
                 database=self.config.db_name,
             )
 
-    def _close(self) -> None:
-        if self._conn and not self._conn.closed:
-            self._conn.close()
-
     def get_cursor(self) -> cursor:
         self._connect()
         return self._conn.cursor()
+
+    def commit(self) -> None:
+        if self._conn:
+            self._conn.commit()
+
+    def rollback(self) -> None:
+        if self._conn:
+            self._conn.rollback()
+
+    def _close(self) -> None:
+        if self._conn and not self._conn.closed:
+            self._conn.close()
 
     def __enter__(self) -> "PostgresConnection":
         self._connect()
