@@ -16,7 +16,7 @@ def sales_streaming():
 
     submit_sales_stream = SparkSubmitOperator(
         task_id="submit_sales_stream",
-        application="/opt/spark/jobs/sales_to_postgres.py",
+        application="/opt/app/spark/jobs/sales_to_postgres.py",
         conn_id="spark_default",
         name="sales-to-postgres",
         verbose=True,

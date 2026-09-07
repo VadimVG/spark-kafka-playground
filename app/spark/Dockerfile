@@ -24,3 +24,5 @@ RUN mkdir -p /opt/spark/checkpoints && \
     chmod 755 /opt/spark/checkpoints
 
 USER spark
+
+ENV PYTHONPATH="/opt:${PYTHONPATH}"

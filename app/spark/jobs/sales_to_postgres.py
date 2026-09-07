@@ -4,6 +4,8 @@ from pyspark.sql.types import StructType, StructField, StringType, IntegerType, 
 
 import os
 
+from app.common_utils.connections.config import pg_config
+
 def main():
     # Create SparkSession - the entry point to Spark cluster
     # getOrCreate() returns existing session if already exists, otherwise creates new
@@ -73,20 +75,17 @@ def write_to_postgres(batch_df: DataFrame, batch_id: int):
     # batch_df - DataFrame with data accumulated during trigger interval
     # batch_id - sequential number of the micro-batch
 
-    db_url = os.getenv("POSTGRES_URL")
     db_table = "sales"
-    db_user = os.getenv("POSTGRES_USER")
-    db_password = os.getenv("POSTGRES_PASSWORD")
 
     count = batch_df.count()
-    print(f"Batch {batch_id}: writing {count} rows to PostgreSQL table 'sales'")
+    print(f"Batch {batch_id}: writing {count} rows to PostgreSQL table '{db_table}'")
 
     batch_df.write \
         .format("jdbc") \
-        .option("url", db_url) \
+        .option("url", pg_config.pg_url) \
         .option("dbtable", db_table) \
-        .option("user", db_user) \
-        .option("password", db_password) \
+        .option("user", pg_config.user) \
+        .option("password", pg_config.password) \
         .option("driver", "org.postgresql.Driver") \
         .mode("append") \
         .save()

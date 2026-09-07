@@ -41,6 +41,8 @@ RUN mkdir -p /opt/spark/checkpoints && \
 # Switch back to Airflow user (required for pip install)
 USER airflow
 
+ENV PYTHONPATH="/opt:${PYTHONPATH}"
+
 RUN pip install --no-cache-dir psycopg2-binary==2.9.11
 
 # Install Airflow providers
