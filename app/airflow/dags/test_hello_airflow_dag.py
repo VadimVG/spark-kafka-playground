@@ -4,18 +4,18 @@ from airflow.decorators import dag, task
 
 
 @dag(
-    dag_id="test_hello",
+    dag_id="test_hello_airflow",
     start_date=datetime(2026, 1, 1),
     schedule=None,  # manual trigger only
     catchup=False,
     tags=["test"],
     description="Test DAG to verify Airflow is working",
 )
-def test_hello():
+def test_hello_airflow():
 
     @task
     def say_hello() -> str:
-        print("Hello from Airflow! Kafka + Spark playground is alive.")
+        print("Hello from Airflow!")
         return "done"
 
     @task
@@ -25,4 +25,4 @@ def test_hello():
     print_time(say_hello())
 
 
-test_hello()
+test_hello_airflow()
