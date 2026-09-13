@@ -79,7 +79,7 @@ def main():
     query = (
         aggregated.writeStream
         .foreachBatch(write_to_postgres)
-        .outputMode("update")  # только изменённые агрегаты
+        .outputMode("update")
         .trigger(processingTime="10 seconds")
         .option("checkpointLocation", "/opt/spark/checkpoints/logs_metrics")
         .start()
@@ -97,7 +97,6 @@ def write_to_postgres(batch_df: DataFrame, batch_id: int) -> None:
     count = batch_df.count()
     print(f"Batch {batch_id}: processing {count} metric rows")
 
-    # Раскрываем window-структуру
     flattened = batch_df.select(
         col("window.start").alias("window_start"),
         col("window.end").alias("window_end"),
@@ -106,7 +105,6 @@ def write_to_postgres(batch_df: DataFrame, batch_id: int) -> None:
         col("count").alias("cnt"),
     )
 
-    # Upsert по партициям
     flattened.foreachPartition(upsert_partition)
 
     print(f"Batch {batch_id}: metrics upserted")
