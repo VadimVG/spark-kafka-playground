@@ -1,23 +1,14 @@
-from pyspark.sql import SparkSession, DataFrame
-from pyspark.sql.functions import from_json, col
+from pyspark.sql import DataFrame
 from pyspark.sql.types import StructType, StructField, StringType, IntegerType, DecimalType, TimestampType
 
-from app.common_utils.connections.config import pg_config
+from app.common_utils.connections.config import pg_config, kafka_config
+from app.spark.utils.logging import log_spark_batch
+from app.spark.utils.streaming import create_spark_session, read_kafka_json_stream, run_streaming_query
 
 
 def main():
-    # Create SparkSession - the entry point to Spark cluster
-    # getOrCreate() returns existing session if already exists, otherwise creates new
-    # Must be only one SparkSession in Python process
-    spark = (
-        SparkSession.builder
-        .appName("sales-to-postgres")
-        .getOrCreate()
-    )
-    spark.sparkContext.setLogLevel("WARN") 
+    spark = create_spark_session("sales-to-postgres")
 
-    # Define schema for sales events JSON
-    # Schema helps Spark parse JSON faster and more reliably than inferring types
     sales_schema = StructType([
         StructField("sale_id", StringType(), True),
         StructField("user_id", IntegerType(), True),
@@ -26,63 +17,26 @@ def main():
         StructField("timestamp", TimestampType(), True),
     ])
 
-    # Read streaming data from Kafka topic "sales"
-    # This creates a lazy DataFrame, no actual reading happens until start()
-    df = (
-        spark.readStream
-        .format("kafka")
-        .option("kafka.bootstrap.servers", "kafka:9092")
-        .option("subscribe", "sales")
-        .option("startingOffsets", "latest")
-        .load()
+    parsed = read_kafka_json_stream(
+        spark,
+        topic="sales",
+        schema=sales_schema,
+        bootstrap_servers=kafka_config.bootstrap_servers,
     )
 
-    # Parse JSON from Kafka messages
-    # Kafka sends value as binary , so we use CAST to string
-    # from_json parses string into structure according to schema
-    # select("data.*") expands structure into separate columns
-    parsed = (
-        df.selectExpr("CAST(value AS STRING)", "offset", "partition", "topic")
-        .select(
-            from_json(col("value"), sales_schema).alias("data"),
-            col("offset").alias("kafka_offset"),
-            col("partition").alias("kafka_partition"),
-            col("topic").alias("kafka_topic"),
-        )
-        .select("data.*", "kafka_offset", "kafka_partition", "kafka_topic")
+    run_streaming_query(
+        parsed,
+        foreach_batch_fn=write_to_postgres,
+        checkpoint_location="/opt/spark/checkpoints/sales",
     )
 
-    # Write stream to PostgreSQL
-    # foreachBatch - for each micro-batch call write_to_postgres function
-    # outputMode("append") - only add new rows, don't update existing
-    # trigger("10 seconds") - process accumulated data every 10 seconds
-    # If job fails, restart continues from last checkpoint, no data loss
-    query = (
-        parsed.writeStream
-        .foreachBatch(write_to_postgres)
-        .outputMode("append")
-        .trigger(processingTime="10 seconds")
-        .option("checkpointLocation", "/opt/spark/checkpoints/sales")
-        .start()
-    )
 
-    #  Keep the streaming job running until stopped
-    query.awaitTermination()
-
-
-def write_to_postgres(batch_df: DataFrame, batch_id: int):
-    # batch_df - DataFrame with data accumulated during trigger interval
-    # batch_id - sequential number of the micro-batch
-
-    db_table = "sales"
-
-    count = batch_df.count()
-    print(f"Batch {batch_id}: writing {count} rows to PostgreSQL table '{db_table}'")
-
+@log_spark_batch("sales")
+def write_to_postgres(batch_df: DataFrame, batch_id: int) -> None:
     batch_df.write \
         .format("jdbc") \
         .option("url", pg_config.pg_url) \
-        .option("dbtable", db_table) \
+        .option("dbtable", "sales") \
         .option("user", pg_config.user) \
         .option("password", pg_config.password) \
         .option("driver", "org.postgresql.Driver") \

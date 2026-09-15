@@ -1,11 +1,13 @@
-from pyspark.sql import SparkSession, DataFrame
-from pyspark.sql.functions import from_json, col, row_number, desc
+from pyspark.sql import DataFrame
+from pyspark.sql.functions import col, row_number, desc
 from pyspark.sql.window import Window
 from pyspark.sql.types import (
     StructType, StructField, StringType, IntegerType,
     DecimalType, TimestampType
 )
 
+from app.common_utils.connections.config import kafka_config
+from app.spark.utils.streaming import create_spark_session, read_kafka_json_stream, run_streaming_query
 from app.spark.utils.partition_upserter import make_partition_upserter
 
 
@@ -34,13 +36,10 @@ upsert_partition = make_partition_upserter(ORDERS_UPSERT_SQL, ORDERS_COLUMNS)
 
 
 def main():
-    spark = (
-        SparkSession.builder
-        .appName("ordres-to-postgres")
-        .config("spark.ui.showConsoleProgress", "false")
-        .getOrCreate()
+    spark = create_spark_session(
+        app_name="ordres-to-postgres",
+        extra_config={"spark.ui.showConsoleProgress": "false"},
     )
-    spark.sparkContext.setLogLevel("WARN")
 
     orders_schema = StructType([
         StructField("order_id", StringType(), True),
@@ -54,39 +53,20 @@ def main():
         StructField("timestamp", TimestampType(), True),
     ])
 
-    df = (
-        spark.readStream
-        .format("kafka")
-        .option("kafka.bootstrap.servers", "kafka:9092")
-        .option("subscribe", "orders")
-        .option("startingOffsets", "latest")
-        .load()
-    )
-
-    parsed = (
-        df.selectExpr("CAST(value AS STRING)", "offset", "partition", "topic")
-        .select(
-            from_json(col("value"), orders_schema).alias("data"),
-            col("offset").alias("kafka_offset"),
-            col("partition").alias("kafka_partition"),
-            col("topic").alias("kafka_topic"),
-        )
-        .select("data.*", "kafka_offset", "kafka_partition", "kafka_topic")
+    parsed = read_kafka_json_stream(
+        spark,
+        topic="orders",
+        schema=orders_schema,
+        bootstrap_servers=kafka_config.bootstrap_servers,
     )
 
     repartitioned = parsed.repartition(4, "order_number")
 
-    # Write stream to PostgreSQL
-    query = (
-        repartitioned.writeStream
-        .foreachBatch(write_to_postgres)
-        .outputMode("append")
-        .trigger(processingTime="10 seconds")
-        .option("checkpointLocation", "/opt/spark/checkpoints/orders")
-        .start()
+    run_streaming_query(
+        repartitioned,
+        foreach_batch_fn=write_to_postgres,
+        checkpoint_location="/opt/spark/checkpoints/orders",
     )
-
-    query.awaitTermination()
 
 
 def write_to_postgres(batch_df: DataFrame, batch_id: int):

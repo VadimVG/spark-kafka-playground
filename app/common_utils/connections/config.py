@@ -22,3 +22,13 @@ pg_config = DBConfig(
     password = os.getenv("POSTGRES_PASSWORD"),
     db_name = os.getenv("POSTGRES_DB"),
 )
+
+
+@dataclass(frozen=True)
+class KafkaConfig:
+    bootstrap_servers: str
+
+
+kafka_config = KafkaConfig(
+    bootstrap_servers=os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092"),
+)

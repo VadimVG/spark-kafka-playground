@@ -13,6 +13,7 @@ from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOpe
     description="Streaming job: Kafka orders topic -> Spark -> PostgreSQL",
 )
 def orders_streaming():
+    
     submit_orders_stream = SparkSubmitOperator(
         task_id="submit_orders_stream",
         application="/opt/app/spark/jobs/orders_to_postgres.py",

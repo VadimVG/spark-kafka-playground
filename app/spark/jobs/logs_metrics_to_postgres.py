@@ -1,9 +1,12 @@
-from pyspark.sql import SparkSession, DataFrame
-from pyspark.sql.functions import from_json, col, window
+from pyspark.sql import DataFrame
+from pyspark.sql.functions import col, window
 from pyspark.sql.types import (
     StructType, StructField, StringType, IntegerType, TimestampType
 )
 
+from app.common_utils.connections.config import kafka_config
+from app.spark.utils.logging import log_spark_batch
+from app.spark.utils.streaming import create_spark_session, read_kafka_json_stream, run_streaming_query
 from app.spark.utils.partition_upserter import make_partition_upserter
 
 
@@ -31,13 +34,10 @@ def main():
     Uses window aggregation + watermark for late data handling.
     Upserts results into logs_metrics table.
     """
-    spark = (
-        SparkSession.builder
-        .appName("logs-metrics-to-postgres")
-        .config("spark.ui.showConsoleProgress", "false")
-        .getOrCreate()
+    spark = create_spark_session(
+        "logs-metrics-to-postgres",
+        extra_config={"spark.ui.showConsoleProgress": "false"},
     )
-    spark.sparkContext.setLogLevel("WARN")
 
     logs_schema = StructType([
         StructField("log_id", StringType(), True),
@@ -47,19 +47,12 @@ def main():
         StructField("timestamp", TimestampType(), True),
     ])
 
-    df = (
-        spark.readStream
-        .format("kafka")
-        .option("kafka.bootstrap.servers", "kafka:9092")
-        .option("subscribe", "logs")
-        .option("startingOffsets", "latest")
-        .load()
-    )
-
-    parsed = (
-        df.selectExpr("CAST(value AS STRING)")
-        .select(from_json(col("value"), logs_schema).alias("data"))
-        .select("data.*")
+    parsed = read_kafka_json_stream(
+        spark,
+        topic="logs",
+        schema=logs_schema,
+        bootstrap_servers=kafka_config.bootstrap_servers,
+        include_kafka_metadata=False,
     )
 
     # Aggregation: count actions per page per 1-minute window
@@ -75,28 +68,16 @@ def main():
         .count()
     )
 
-    # Write to PostgreSQL with upsert
-    query = (
-        aggregated.writeStream
-        .foreachBatch(write_to_postgres)
-        .outputMode("update")
-        .trigger(processingTime="10 seconds")
-        .option("checkpointLocation", "/opt/spark/checkpoints/logs_metrics")
-        .start()
+    run_streaming_query(
+        aggregated,
+        foreach_batch_fn=write_to_postgres,
+        checkpoint_location="/opt/spark/checkpoints/logs_metrics",
+        output_mode="update",
     )
 
-    query.awaitTermination()
 
-
+@log_spark_batch("logs_metrics")
 def write_to_postgres(batch_df: DataFrame, batch_id: int) -> None:
-    """
-    Upsert aggregated metrics to PostgreSQL.
-    If metric already exists for window+action+page - update count.
-    If not - insert new row.
-    """
-    count = batch_df.count()
-    print(f"Batch {batch_id}: processing {count} metric rows")
-
     flattened = batch_df.select(
         col("window.start").alias("window_start"),
         col("window.end").alias("window_end"),
@@ -106,8 +87,6 @@ def write_to_postgres(batch_df: DataFrame, batch_id: int) -> None:
     )
 
     flattened.foreachPartition(upsert_partition)
-
-    print(f"Batch {batch_id}: metrics upserted")
 
 
 if __name__ == "__main__":
