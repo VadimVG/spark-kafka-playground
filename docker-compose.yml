@@ -5,12 +5,12 @@ services:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
     ports:
-      - "2181:2181"
+      - "127.0.0.1:2181:2181"
 
   kafka:
     image: confluentinc/cp-kafka:7.8.0
     ports:
-      - "9092:9092"
+      - "127.0.0.1:9092:9092"
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
@@ -40,10 +40,10 @@ services:
 
   airflow:
     build:
-      context: .
-      dockerfile: app/airflow/Dockerfile
+      context: ./app/airflow
+      dockerfile: Dockerfile
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     environment:
       AIRFLOW__CORE__DAGS_FOLDER: /opt/app/airflow/dags
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
@@ -54,22 +54,26 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
+      HOST_PROJECT_DIR: ${HOST_PROJECT_DIR}
     command: >
         bash -c "airflow db migrate &&
                 airflow standalone"
     volumes:
       - ./app:/opt/app
+      - /var/run/docker.sock:/var/run/docker.sock
+    group_add:
+      - "${DOCKER_GID}"
     depends_on:
       - kafka
       - spark-master
 
   spark-master:
     build:
-      context: .
-      dockerfile: app/spark/Dockerfile
+      context: ./app/spark
+      dockerfile: Dockerfile
     ports:
-      - "7077:7077"
-      - "8081:8080"
+      - "127.0.0.1:7077:7077"
+      - "127.0.0.1:8081:8080"
     environment:
       POSTGRES_HOST: ${POSTGRES_HOST}
       POSTGRES_PORT: ${POSTGRES_PORT}
@@ -86,10 +90,10 @@ services:
 
   spark-worker:
     build:
-      context: .
-      dockerfile: app/spark/Dockerfile
+      context: ./app/spark
+      dockerfile: Dockerfile
     ports:
-      - "8082:8081"
+      - "127.0.0.1:8082:8081"
     environment:
       POSTGRES_HOST: ${POSTGRES_HOST}
       POSTGRES_PORT: ${POSTGRES_PORT}
@@ -105,6 +109,24 @@ services:
       - ./app/common_utils:/opt/app/common_utils
     depends_on:
       - spark-master
+
+
+  sqlmesh:
+    build:
+      context: ./app/sqlmesh
+      dockerfile: Dockerfile
+    image: sqlmesh:local
+    # profiles: ["tools"]
+    user: "${UID_GID}"
+    command: sleep infinity
+    environment:
+      POSTGRES_HOST: ${POSTGRES_HOST}
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - ./app/sqlmesh:/opt/app/sqlmesh
 
 
 networks:
