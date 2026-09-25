@@ -105,6 +105,36 @@ docker compose exec spark-master \
 # Open an interactive PySpark shell
 docker compose exec -it spark-master /opt/spark/bin/pyspark
 ```
+
+### 6. SQLMesh
+Transforms the raw tables that Spark writes into PostgreSQL. Tracks model versions, runs data quality checks (audits), and supports safe dev/prod environments before changes go live.
+- **Image:** `sqlmesh:local`, built from `python:3.12-slim` (see `app/sqlmesh/Dockerfile`)
+- **Port:** none. It is a CLI tool, not a web service.
+- **Project folder:** `app/sqlmesh/` (models, audits, tests, `config.yaml`)
+- **Connection:** uses the same PostgreSQL instance as Spark. State (SQLMesh's own metadata) lives in the schema `sqlmesh`.
+- **Note:** the container stays up (`sleep infinity`) so you can run commands with `docker compose exec sqlmesh sqlmesh ...`. Airflow does not use this container — it starts its own short-lived container from the same `sqlmesh:local` image through `DockerOperator`.
+ 
+See [app/sqlmesh/README.md](app/sqlmesh/README.md) for setup details, key concepts, and a command cheat sheet.
+ 
+**Useful commands:**
+```bash
+# Shortcut used below
+alias sm='docker compose exec sqlmesh sqlmesh'
+ 
+# Project info and connection check
+sm info
+ 
+# Apply changes to a dev environment first
+sm plan dev
+ 
+# Apply changes to prod
+sm plan
+ 
+# Run the models that are ready (what the sqlmesh_run DAG does)
+sm run
+```
+ 
+
  
 ## 🚀 Launch and testing
  
