@@ -107,7 +107,7 @@ docker compose exec -it spark-master /opt/spark/bin/pyspark
 ```
 
 ### 6. SQLMesh
-Transforms the raw tables that Spark writes into PostgreSQL. Tracks model versions, runs data quality checks (audits), and supports safe dev/prod environments before changes go live.
+Tool for data transformation. Tracks model versions, runs data quality checks (audits), and supports safe dev/prod environments before changes go live.
 - **Image:** `sqlmesh:local`, built from `python:3.12-slim` (see `app/sqlmesh/Dockerfile`)
 - **Port:** none. It is a CLI tool, not a web service.
 - **Project folder:** `app/sqlmesh/` (models, audits, tests, `config.yaml`)
