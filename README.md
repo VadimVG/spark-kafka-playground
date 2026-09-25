@@ -9,12 +9,14 @@ The project copies a real production setup:
 - **Kafka** is a message broker. It gets events from the simulator and stores them until a consumer is ready to read them. If a consumer is slow or down, the messages just wait in Kafka. Nothing is lost.
 - **Spark** reads the streams from Kafka, processes them, and saves the results in PostgreSQL.
 - **Airflow** manages the Spark jobs. It schedules them and checks that they run correctly.
+- **SQLMesh** transforms the raw tables in PostgreSQL into models, with version control and data quality checks.
 - **PostgreSQL** stores the processed data for analytics (an external service).
 ## 🛠️ Technologies
  
 - **Kafka** – message broker between the event simulator and Spark
 - **Spark** – processes the event streams and writes results to the database
 - **Airflow** – schedules and monitors the Spark jobs
+- **SQLMesh** – transforms and tests the data in PostgreSQL
 - **PostgreSQL** – stores the processed data
 - **Docker** – runs all services in containers
 ## ⚙️ Installation
